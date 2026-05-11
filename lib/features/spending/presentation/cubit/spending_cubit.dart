@@ -1,14 +1,16 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:wealthpath/features/spending/domain/entities/create_spending_input.dart';
 import 'package:wealthpath/features/spending/domain/entities/spending_entity.dart';
-import 'package:wealthpath/features/spending/domain/repositories/spending_repository.dart';
+import 'package:wealthpath/features/spending/domain/usecases/add_spending.dart';
+import 'package:wealthpath/features/spending/domain/usecases/get_spending.dart';
 
 import 'spending_state.dart';
 
 class SpendingCubit extends Cubit<SpendingState> {
-  SpendingCubit(this._repository) : super(const SpendingInitial());
+  SpendingCubit(this._getSpending, this._addSpending) : super(const SpendingInitial());
 
-  final SpendingRepository _repository;
+  final GetSpending _getSpending;
+  final AddSpending _addSpending;
   int _currentPage = 1;
   bool _isLoadingMore = false;
 
@@ -37,7 +39,7 @@ class SpendingCubit extends Cubit<SpendingState> {
   Future<void> loadSpending({int page = 1, int limit = 20}) async {
     emit(const SpendingLoading());
     try {
-      final response = await _repository.getSpending(page: page, limit: limit);
+      final response = await _getSpending(page: page, limit: limit);
       _currentPage = page;
       emit(
         SpendingLoaded(
@@ -60,7 +62,7 @@ class SpendingCubit extends Cubit<SpendingState> {
     final nextPage = _currentPage + 1;
 
     try {
-      final response = await _repository.getSpending(page: nextPage, limit: limit);
+      final response = await _getSpending(page: nextPage, limit: limit);
       _currentPage = nextPage;
 
       emit(
@@ -109,7 +111,7 @@ class SpendingCubit extends Cubit<SpendingState> {
     );
 
     try {
-      final created = await _repository.addSpending(input);
+      final created = await _addSpending(input);
       final latestState = state;
       if (latestState is! SpendingLoaded) {
         return;
@@ -127,16 +129,28 @@ class SpendingCubit extends Cubit<SpendingState> {
         ),
       );
     } catch (_) {
-      final rollbackItems = currentState.items;
-      final rollbackTotal = currentState.total;
-
-      emit(
-        SpendingLoaded(
-          items: rollbackItems,
-          total: rollbackTotal,
-          hasMore: currentState.hasMore,
-        ),
-      );
+      final latestState = state;
+      if (latestState is SpendingLoaded) {
+        final rollbackItems = latestState.items
+            .where((item) => item.id != optimisticItem.id)
+            .toList(growable: false);
+        final rollbackTotal = latestState.total - input.amount;
+        emit(
+          SpendingLoaded(
+            items: rollbackItems,
+            total: rollbackTotal < 0 ? 0 : rollbackTotal,
+            hasMore: latestState.hasMore,
+          ),
+        );
+      } else {
+        emit(
+          SpendingLoaded(
+            items: currentState.items,
+            total: currentState.total,
+            hasMore: currentState.hasMore,
+          ),
+        );
+      }
       emit(const SpendingError('Failed to add spending. Changes rolled back.'));
     }
   }
