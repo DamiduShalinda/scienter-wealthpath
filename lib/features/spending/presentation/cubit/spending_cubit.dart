@@ -9,6 +9,8 @@ class SpendingCubit extends Cubit<SpendingState> {
   SpendingCubit(this._repository) : super(const SpendingInitial());
 
   final SpendingRepository _repository;
+  int _currentPage = 1;
+  bool _isLoadingMore = false;
 
   void setLoading() {
     emit(const SpendingLoading());
@@ -27,7 +29,53 @@ class SpendingCubit extends Cubit<SpendingState> {
   }
 
   void reset() {
+    _currentPage = 1;
+    _isLoadingMore = false;
     emit(const SpendingInitial());
+  }
+
+  Future<void> loadSpending({int page = 1, int limit = 20}) async {
+    emit(const SpendingLoading());
+    try {
+      final response = await _repository.getSpending(page: page, limit: limit);
+      _currentPage = page;
+      emit(
+        SpendingLoaded(
+          items: response.items,
+          total: response.total,
+          hasMore: response.hasMore,
+        ),
+      );
+    } catch (_) {
+      emit(const SpendingError('Failed to load spending records.'));
+    }
+  }
+
+  Future<void> loadMoreSpending({int limit = 20}) async {
+    final currentState = state;
+    if (currentState is! SpendingLoaded) return;
+    if (!currentState.hasMore || _isLoadingMore) return;
+
+    _isLoadingMore = true;
+    final nextPage = _currentPage + 1;
+
+    try {
+      final response = await _repository.getSpending(page: nextPage, limit: limit);
+      _currentPage = nextPage;
+
+      emit(
+        SpendingLoaded(
+          items: <SpendingEntity>[...currentState.items, ...response.items],
+          total: response.total,
+          hasMore: response.hasMore,
+        ),
+      );
+    } catch (_) {
+      emit(const SpendingError('Failed to load more spending records.'));
+      emit(currentState);
+    } finally {
+      _isLoadingMore = false;
+    }
   }
 
   Future<void> addSpendingOptimistic(CreateSpendingInput input) async {
