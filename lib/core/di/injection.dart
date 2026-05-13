@@ -9,6 +9,7 @@ import 'package:wealthpath/features/budgets/domain/usecases/cache_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/get_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/get_cached_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/update_budget_limit.dart';
+import 'package:wealthpath/features/budgets/presentation/cubit/budget_cubit.dart';
 import 'package:wealthpath/features/spending/data/datasources/spending_remote_data_source.dart';
 import 'package:wealthpath/features/spending/data/repositories/spending_repository_impl.dart';
 import 'package:wealthpath/features/spending/domain/repositories/spending_repository.dart';
@@ -102,6 +103,16 @@ void configureDependencies() {
   if (!sl.isRegistered<CacheBudgets>()) {
     sl.registerLazySingleton<CacheBudgets>(
       () => CacheBudgets(sl<BudgetRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<BudgetCubit>()) {
+    sl.registerFactory<BudgetCubit>(
+      () => BudgetCubit(
+        getBudgets: sl<GetBudgets>(),
+        getCachedBudgets: sl<GetCachedBudgets>(),
+        cacheBudgets: sl<CacheBudgets>(),
+      ),
     );
   }
 }
