@@ -12,19 +12,26 @@ import 'package:wealthpath/features/budgets/presentation/cubit/budget_state.dart
 class _FakeBudgetRepository implements BudgetRepository {
   _FakeBudgetRepository({
     required this.pages,
+    this.cached = const <BudgetEntity>[],
+    this.failRemote = false,
   });
 
   final Map<int, BudgetPageEntity<BudgetEntity>> pages;
+  final List<BudgetEntity> cached;
+  final bool failRemote;
   final List<int> requestedPages = <int>[];
 
   @override
   Future<void> cacheBudgets(List<BudgetEntity> budgets) async {}
 
   @override
-  Future<List<BudgetEntity>> getCachedBudgets() async => const <BudgetEntity>[];
+  Future<List<BudgetEntity>> getCachedBudgets() async => cached;
 
   @override
   Future<BudgetPageEntity<BudgetEntity>> getBudgets({int page = 1, int limit = 20}) async {
+    if (failRemote) {
+      throw Exception('remote failed');
+    }
     requestedPages.add(page);
     return pages[page] ?? const BudgetPageEntity<BudgetEntity>(items: <BudgetEntity>[], hasMore: false);
   }
@@ -132,5 +139,26 @@ void main() {
     expect(state.budgets.length, 2);
     expect(state.hasMore, false);
     expect(repository.requestedPages, <int>[1, 2]);
+  });
+
+  test('keeps cached loaded state with isOffline true when remote refresh fails', () async {
+    final cachedBudgets = <BudgetEntity>[
+      const BudgetEntity(id: '1', category: 'Groceries', spent: 10, limit: 100, currency: 'USD'),
+    ];
+    final repository = _FakeBudgetRepository(
+      pages: const <int, BudgetPageEntity<BudgetEntity>>{},
+      cached: cachedBudgets,
+      failRemote: true,
+    );
+
+    final cubit = createCubit(repository);
+    addTearDown(cubit.close);
+
+    await cubit.loadBudgets();
+
+    final state = cubit.state as BudgetLoaded;
+    expect(state.isOffline, true);
+    expect(state.budgets.length, 1);
+    expect(state.budgets.first.category, 'Groceries');
   });
 }
