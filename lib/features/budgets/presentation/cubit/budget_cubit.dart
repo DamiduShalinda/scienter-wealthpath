@@ -22,9 +22,13 @@ class BudgetCubit extends Cubit<BudgetState> {
   final GetCachedBudgets _getCachedBudgets;
   final CacheBudgets _cacheBudgets;
   Timer? _searchDebounceTimer;
+  int _currentPage = 1;
+  bool _isLoadingMore = false;
   static const Duration _searchDebounceDuration = Duration(milliseconds: 300);
 
   Future<void> loadBudgets({int page = 1, int limit = 20}) async {
+    _currentPage = page;
+    _isLoadingMore = false;
     final cached = await _getCachedBudgets();
 
     if (cached.isNotEmpty) {
@@ -61,6 +65,38 @@ class BudgetCubit extends Cubit<BudgetState> {
       if (cached.isEmpty) {
         emit(const BudgetError('Failed to load budgets.'));
       }
+    }
+  }
+
+  Future<void> loadMoreBudgets({int limit = 20}) async {
+    final currentState = state;
+    if (currentState is! BudgetLoaded) return;
+    if (!currentState.hasMore || _isLoadingMore) return;
+
+    _isLoadingMore = true;
+    final nextPage = _currentPage + 1;
+
+    try {
+      final remote = await _getBudgets(page: nextPage, limit: limit);
+      final mergedBudgets = <BudgetEntity>[
+        ...currentState.budgets,
+        ...remote.items,
+      ];
+      await _cacheBudgets(mergedBudgets);
+
+      emit(
+        currentState.copyWith(
+          budgets: mergedBudgets,
+          filteredBudgets: _filterBudgets(mergedBudgets, currentState.searchQuery),
+          hasMore: remote.hasMore,
+          isOffline: false,
+        ),
+      );
+      _currentPage = nextPage;
+    } catch (_) {
+      emit(currentState);
+    } finally {
+      _isLoadingMore = false;
     }
   }
 

@@ -10,10 +10,11 @@ import 'package:wealthpath/features/budgets/presentation/cubit/budget_state.dart
 
 class _FakeBudgetRepository implements BudgetRepository {
   _FakeBudgetRepository({
-    required this.remoteBudgets,
+    required this.pages,
   });
 
-  final List<BudgetEntity> remoteBudgets;
+  final Map<int, BudgetPageEntity<BudgetEntity>> pages;
+  final List<int> requestedPages = <int>[];
 
   @override
   Future<void> cacheBudgets(List<BudgetEntity> budgets) async {}
@@ -23,7 +24,8 @@ class _FakeBudgetRepository implements BudgetRepository {
 
   @override
   Future<BudgetPageEntity<BudgetEntity>> getBudgets({int page = 1, int limit = 20}) async {
-    return BudgetPageEntity<BudgetEntity>(items: remoteBudgets, hasMore: false);
+    requestedPages.add(page);
+    return pages[page] ?? const BudgetPageEntity<BudgetEntity>(items: <BudgetEntity>[], hasMore: false);
   }
 
   @override
@@ -33,8 +35,7 @@ class _FakeBudgetRepository implements BudgetRepository {
 }
 
 void main() {
-  BudgetCubit createCubit(List<BudgetEntity> budgets) {
-    final repository = _FakeBudgetRepository(remoteBudgets: budgets);
+  BudgetCubit createCubit(_FakeBudgetRepository repository) {
     return BudgetCubit(
       getBudgets: GetBudgets(repository),
       getCachedBudgets: GetCachedBudgets(repository),
@@ -48,8 +49,13 @@ void main() {
       const BudgetEntity(id: '2', category: 'Dining', spent: 20, limit: 100, currency: 'USD'),
       const BudgetEntity(id: '3', category: 'Transport', spent: 30, limit: 100, currency: 'USD'),
     ];
+    final repository = _FakeBudgetRepository(
+      pages: <int, BudgetPageEntity<BudgetEntity>>{
+        1: BudgetPageEntity<BudgetEntity>(items: budgets, hasMore: false),
+      },
+    );
 
-    final cubit = createCubit(budgets);
+    final cubit = createCubit(repository);
     addTearDown(cubit.close);
 
     await cubit.loadBudgets();
@@ -73,8 +79,13 @@ void main() {
       const BudgetEntity(id: '1', category: 'Groceries', spent: 10, limit: 100, currency: 'USD'),
       const BudgetEntity(id: '2', category: 'Gaming', spent: 20, limit: 100, currency: 'USD'),
     ];
+    final repository = _FakeBudgetRepository(
+      pages: <int, BudgetPageEntity<BudgetEntity>>{
+        1: BudgetPageEntity<BudgetEntity>(items: budgets, hasMore: false),
+      },
+    );
 
-    final cubit = createCubit(budgets);
+    final cubit = createCubit(repository);
     addTearDown(cubit.close);
 
     await cubit.loadBudgets();
@@ -88,5 +99,32 @@ void main() {
     expect(state.searchQuery, 'gam');
     expect(state.filteredBudgets.length, 1);
     expect(state.filteredBudgets.first.category, 'Gaming');
+  });
+
+  test('pagination appends next page and respects hasMore', () async {
+    final page1 = <BudgetEntity>[
+      const BudgetEntity(id: '1', category: 'Groceries', spent: 10, limit: 100, currency: 'USD'),
+    ];
+    final page2 = <BudgetEntity>[
+      const BudgetEntity(id: '2', category: 'Dining', spent: 20, limit: 100, currency: 'USD'),
+    ];
+    final repository = _FakeBudgetRepository(
+      pages: <int, BudgetPageEntity<BudgetEntity>>{
+        1: BudgetPageEntity<BudgetEntity>(items: page1, hasMore: true),
+        2: BudgetPageEntity<BudgetEntity>(items: page2, hasMore: false),
+      },
+    );
+
+    final cubit = createCubit(repository);
+    addTearDown(cubit.close);
+
+    await cubit.loadBudgets();
+    await cubit.loadMoreBudgets();
+    await cubit.loadMoreBudgets();
+
+    final state = cubit.state as BudgetLoaded;
+    expect(state.budgets.length, 2);
+    expect(state.hasMore, false);
+    expect(repository.requestedPages, <int>[1, 2]);
   });
 }
