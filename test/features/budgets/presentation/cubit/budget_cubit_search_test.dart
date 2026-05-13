@@ -5,6 +5,7 @@ import 'package:wealthpath/features/budgets/domain/repositories/budget_repositor
 import 'package:wealthpath/features/budgets/domain/usecases/cache_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/get_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/get_cached_budgets.dart';
+import 'package:wealthpath/features/budgets/domain/usecases/update_budget_limit.dart';
 import 'package:wealthpath/features/budgets/presentation/cubit/budget_cubit.dart';
 import 'package:wealthpath/features/budgets/presentation/cubit/budget_state.dart';
 
@@ -29,8 +30,12 @@ class _FakeBudgetRepository implements BudgetRepository {
   }
 
   @override
-  Future<BudgetEntity> updateBudgetLimit(String id, double newLimit) {
-    throw UnimplementedError();
+  Future<BudgetEntity> updateBudgetLimit(
+    String id,
+    double newLimit, {
+    bool forceFail = false,
+  }) async {
+    throw Exception('not implemented');
   }
 }
 
@@ -40,6 +45,7 @@ void main() {
       getBudgets: GetBudgets(repository),
       getCachedBudgets: GetCachedBudgets(repository),
       cacheBudgets: CacheBudgets(repository),
+      updateBudgetLimit: UpdateBudgetLimit(repository),
     );
   }
 

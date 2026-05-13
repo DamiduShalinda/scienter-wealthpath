@@ -24,8 +24,16 @@ class BudgetRepositoryImpl implements BudgetRepository {
   }
 
   @override
-  Future<BudgetEntity> updateBudgetLimit(String id, double newLimit) {
-    return _remoteDataSource.updateBudgetLimit(id, newLimit);
+  Future<BudgetEntity> updateBudgetLimit(
+    String id,
+    double newLimit, {
+    bool forceFail = false,
+  }) {
+    return _remoteDataSource.updateBudgetLimit(
+      id,
+      newLimit,
+      forceFail: forceFail,
+    );
   }
 
   @override

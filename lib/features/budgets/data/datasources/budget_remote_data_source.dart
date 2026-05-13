@@ -5,7 +5,11 @@ import '../models/budget_page_model.dart';
 
 abstract class BudgetRemoteDataSource {
   Future<BudgetPageModel> getBudgets({int page = 1, int limit = 20});
-  Future<BudgetModel> updateBudgetLimit(String id, double newLimit);
+  Future<BudgetModel> updateBudgetLimit(
+    String id,
+    double newLimit, {
+    bool forceFail = false,
+  });
 }
 
 class BudgetRemoteDataSourceImpl implements BudgetRemoteDataSource {
@@ -27,10 +31,17 @@ class BudgetRemoteDataSourceImpl implements BudgetRemoteDataSource {
   }
 
   @override
-  Future<BudgetModel> updateBudgetLimit(String id, double newLimit) async {
+  Future<BudgetModel> updateBudgetLimit(
+    String id,
+    double newLimit, {
+    bool forceFail = false,
+  }) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '$baseUrl/budgets/$id',
       data: <String, dynamic>{'limit': newLimit},
+      options: Options(
+        headers: forceFail ? <String, dynamic>{'X-Force-Fail': 'true'} : null,
+      ),
     );
 
     return BudgetModel.fromJson(response.data ?? <String, dynamic>{});

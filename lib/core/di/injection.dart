@@ -112,6 +112,7 @@ void configureDependencies() {
         getBudgets: sl<GetBudgets>(),
         getCachedBudgets: sl<GetCachedBudgets>(),
         cacheBudgets: sl<CacheBudgets>(),
+        updateBudgetLimit: sl<UpdateBudgetLimit>(),
       ),
     );
   }

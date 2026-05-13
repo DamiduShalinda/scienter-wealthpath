@@ -6,7 +6,11 @@ class UpdateBudgetLimit {
 
   final BudgetRepository _repository;
 
-  Future<BudgetEntity> call(String id, double newLimit) {
-    return _repository.updateBudgetLimit(id, newLimit);
+  Future<BudgetEntity> call(
+    String id,
+    double newLimit, {
+    bool forceFail = false,
+  }) {
+    return _repository.updateBudgetLimit(id, newLimit, forceFail: forceFail);
   }
 }

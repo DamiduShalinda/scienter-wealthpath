@@ -5,6 +5,7 @@ import 'package:wealthpath/features/budgets/domain/entities/budget_entity.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/cache_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/get_budgets.dart';
 import 'package:wealthpath/features/budgets/domain/usecases/get_cached_budgets.dart';
+import 'package:wealthpath/features/budgets/domain/usecases/update_budget_limit.dart';
 
 import 'budget_state.dart';
 
@@ -13,14 +14,17 @@ class BudgetCubit extends Cubit<BudgetState> {
     required GetBudgets getBudgets,
     required GetCachedBudgets getCachedBudgets,
     required CacheBudgets cacheBudgets,
+    required UpdateBudgetLimit updateBudgetLimit,
   })  : _getBudgets = getBudgets,
         _getCachedBudgets = getCachedBudgets,
         _cacheBudgets = cacheBudgets,
+        _updateBudgetLimit = updateBudgetLimit,
         super(const BudgetInitial());
 
   final GetBudgets _getBudgets;
   final GetCachedBudgets _getCachedBudgets;
   final CacheBudgets _cacheBudgets;
+  final UpdateBudgetLimit _updateBudgetLimit;
   Timer? _searchDebounceTimer;
   int _currentPage = 1;
   bool _isLoadingMore = false;
@@ -114,6 +118,86 @@ class BudgetCubit extends Cubit<BudgetState> {
         ),
       );
     });
+  }
+
+  Future<void> updateBudgetLimitOptimistic(
+    String id,
+    double newLimit, {
+    bool forceFail = false,
+  }) async {
+    final currentState = state;
+    if (currentState is! BudgetLoaded) return;
+
+    final previousBudgets = currentState.budgets;
+    final optimisticBudgets = currentState.budgets
+        .map(
+          (budget) => budget.id == id
+              ? BudgetEntity(
+                  id: budget.id,
+                  category: budget.category,
+                  spent: budget.spent,
+                  limit: newLimit,
+                  currency: budget.currency,
+                )
+              : budget,
+        )
+        .toList(growable: false);
+
+    emit(
+      currentState.copyWith(
+        budgets: optimisticBudgets,
+        filteredBudgets: _filterBudgets(optimisticBudgets, currentState.searchQuery),
+      ),
+    );
+    await _cacheBudgets(optimisticBudgets);
+
+    try {
+      final updated = await _updateBudgetLimit(id, newLimit, forceFail: forceFail);
+      final latestState = state;
+      if (latestState is! BudgetLoaded) return;
+
+      final reconciledBudgets = latestState.budgets
+          .map((budget) => budget.id == id ? updated : budget)
+          .toList(growable: false);
+      emit(
+        latestState.copyWith(
+          budgets: reconciledBudgets,
+          filteredBudgets: _filterBudgets(reconciledBudgets, latestState.searchQuery),
+        ),
+      );
+      await _cacheBudgets(reconciledBudgets);
+    } catch (_) {
+      final rollbackState = state;
+      if (rollbackState is BudgetLoaded) {
+        emit(
+          rollbackState.copyWith(
+            budgets: previousBudgets,
+            filteredBudgets: _filterBudgets(previousBudgets, rollbackState.searchQuery),
+          ),
+        );
+      } else {
+        emit(
+          BudgetLoaded(
+            budgets: previousBudgets,
+            filteredBudgets: _filterBudgets(previousBudgets, currentState.searchQuery),
+            searchQuery: currentState.searchQuery,
+            isOffline: currentState.isOffline,
+            hasMore: currentState.hasMore,
+          ),
+        );
+      }
+      await _cacheBudgets(previousBudgets);
+      emit(const BudgetError('Failed to update budget. Changes rolled back.'));
+      emit(
+        BudgetLoaded(
+          budgets: previousBudgets,
+          filteredBudgets: _filterBudgets(previousBudgets, currentState.searchQuery),
+          searchQuery: currentState.searchQuery,
+          isOffline: currentState.isOffline,
+          hasMore: currentState.hasMore,
+        ),
+      );
+    }
   }
 
   List<BudgetEntity> budgetsToDisplay() {
