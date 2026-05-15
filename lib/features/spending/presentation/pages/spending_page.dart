@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wealthpath/features/spending/domain/entities/create_spending_input.dart';
 import 'package:wealthpath/features/spending/presentation/cubit/spending_cubit.dart';
 import 'package:wealthpath/features/spending/presentation/cubit/spending_state.dart';
@@ -48,9 +49,9 @@ class _SpendingPageState extends State<SpendingPage> {
       body: BlocConsumer<SpendingCubit, SpendingState>(
         listener: (context, state) {
           if (state is SpendingError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(state.message)));
           }
         },
         builder: (context, state) {
@@ -229,7 +230,9 @@ class _AddSpendingSheetState extends State<_AddSpendingSheet> {
             TextFormField(
               controller: _amountController,
               decoration: _fieldDecoration('Amount'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: (value) {
                 final amount = double.tryParse(value ?? '');
                 if (amount == null || amount <= 0) {
@@ -243,7 +246,9 @@ class _AddSpendingSheetState extends State<_AddSpendingSheet> {
               initialValue: _category,
               decoration: _fieldDecoration('Category'),
               items: _categories
-                  .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                  .map(
+                    (c) => DropdownMenuItem<String>(value: c, child: Text(c)),
+                  )
                   .toList(),
               onChanged: (value) {
                 if (value != null) setState(() => _category = value);
